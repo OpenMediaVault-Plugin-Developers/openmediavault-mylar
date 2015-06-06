@@ -1,0 +1,16 @@
+Source: openmediavault-mylar
+Section: net
+XB-Plugin-Section: downloaders
+Priority: optional
+Maintainer: OpenMediaVault Plugin Developers <plugins@omv-extras.org>
+Build-Depends: debhelper (>= 9)
+Standards-Version: 3.9.3
+Homepage: http://forum.mylarcomics.com/
+
+Package: openmediavault-mylar
+Architecture: all
+Depends: ${misc:Depends}, openmediavault (>= 0.6), git
+Description: OpenMediaVault Sick Beard plugin
+ Mylar is an automated Comic Book (cbr/cbz) downloader program heavily-based on
+ the Headphones template and logic (which is also based on Sick-Beard).
+

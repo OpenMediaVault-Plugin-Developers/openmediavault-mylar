@@ -1,0 +1,57 @@
+#!/bin/sh
+
+set -e
+
+. /etc/default/openmediavault
+. /usr/share/openmediavault/scripts/helper-functions
+
+OMV_MYLAR1_APP_PATH="/opt/mylar"
+OMV_MYLAR1_DATA_PATH="/var/opt/mylar"
+OMV_MYLAR_USER="mylar"
+OMV_MYLAR_GROUP="users"
+
+case "$1" in
+    configure)
+        SERVICE_XPATH_NAME="mylar"
+        SERVICE_XPATH="/config/services/${SERVICE_XPATH_NAME}"
+
+        if ! omv_config_exists "${SERVICE_XPATH}"; then
+            omv_config_add_element "/config/services" "${SERVICE_XPATH_NAME}"
+            omv_config_add_element "${SERVICE_XPATH}" "enable" "0"
+            omv_config_add_element "${SERVICE_XPATH}" "ssl" "0"
+            omv_config_add_element "${SERVICE_XPATH}" "ppass" "0"
+            omv_config_add_element "${SERVICE_XPATH}" "repo" "Please choose a repository"
+            omv_config_add_element "${SERVICE_XPATH}" "branch" "Please choose a branch"
+            omv_config_add_element "${SERVICE_XPATH}" "show_tab" "0"
+        fi
+
+        if ! getent passwd mylar >/dev/null 2>&1; then
+            adduser --quiet \
+                    --system \
+                    --ingroup $OMV_MYLAR_GROUP \
+                    --no-create-home \
+                    --disabled-password \
+                    $OMV_MYLAR_USER
+        fi
+
+        chown $OMV_MYLAR_USER:$OMV_MYLAR_GROUP $OMV_MYLAR1_APP_PATH
+        chown $OMV_MYLAR_USER:$OMV_MYLAR_GGOUP $OMV_MYLAR1_DATA_PATH -R
+
+        # Activate package triggers. These triggers are only set during the
+        # package installation.
+        dpkg-trigger update-fixperms
+        dpkg-trigger update-locale
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

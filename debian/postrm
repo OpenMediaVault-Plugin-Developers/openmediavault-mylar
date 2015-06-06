@@ -1,0 +1,61 @@
+#!/bin/sh
+#
+set -e
+
+. /etc/default/openmediavault
+. /usr/share/openmediavault/scripts/helper-functions
+
+OMV_MYLAR1_APP_PATH="/opt/mylar/"
+OMV_MYLAR1_DATA_PATH="/var/opt/mylar"
+OMV_MYLAR_XPATH="/config/services/mylar"
+
+case "$1" in
+    purge)
+        omv_config_delete OMV_MYLAR_XPATH
+
+        if [ -d $OMV_MYLAR1_APP_PATH ]; then
+            find $OMV_MYLAR1_APP_PATH -mindepth 1 -delete
+        fi
+
+        if [ -d $OMV_MYLAR1_DATA_PATH ]; then
+            find $OMV_MYLAR1_DATA_PATH -mindepth 1 -delete
+        fi
+
+        if [ -f "/var/run/mylar/mylar.pid" ]; then
+            start-stop-daemon --stop --pidfile /var/run/mylar/mylar.pid --retry 15 --oknodo > /dev/null 2>&1
+        #    PID=`cat /var/run/mylar/mylar.pid`
+        #    kill -0 $PID 2>/dev/null;
+
+        #    if [ $? -eq 0 ]; then
+        #        kill -9 $PID;
+        #    fi
+        fi
+
+        rm -Rf /var/run/mylar & >/dev/null
+        rm -Rf /opt/mylar & >/dev/null
+
+        omv_config_delete "//services/mylar"
+
+        if [ -d "/opt/mylar" ]; then
+            rm -Rf /opt/mylar/autoProcessTV & >/dev/null
+            rm -Rf /opt/mylar/* & >/dev/null
+            rm -Rf /opt/mylar/.git & >/dev/null
+            rm -Rf /opt/mylar/.gitignore & >/dev/null
+        fi
+
+        if getent passwd mylar >/dev/null 2>&1; then
+            userdel -rf mylar
+        fi
+
+    ;;
+
+        remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument '$1'" >&2
+        exit 1
+    ;;
+esac
+
+exit 0

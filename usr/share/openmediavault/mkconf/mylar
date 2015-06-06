@@ -1,0 +1,174 @@
+#!/bin/sh
+
+set -e
+
+. /etc/default/openmediavault
+. /usr/share/openmediavault/scripts/helper-functions
+
+if [ -f /etc/default/mylar ]; then
+    . /etc/default/mylar
+fi
+
+OMV_MYLAR1_APP_PATH=${CP_HOME-/opt/mylar/}
+OMV_MYLAR1_DATA_PATH=${CP_DATA-/var/opt/mylar}
+OMV_MYLAR1_DATA_CONFIG="${OMV_MYLAR1_DATA_PATH}/config.ini"
+OMV_MYLAR_USER=${CP_USER-mylar}
+OMV_MYLAR_GROUP=${CP_GROUP-users}
+OMV_MYLAR_XPATH="/config/services/mylar"
+
+newinstance="$(omv_config_get "//services/mylar/newinstance")"
+newinstenable="$(omv_config_get "//services/mylar/newinstenable")"
+ppass="$(omv_config_get "//services/mylar/ppass")"
+ssl="$(omv_config_get "//services/mylar/ssl")"
+
+switch_repo()
+{
+    local repo=$1
+    local branch=$2
+
+    if [ -d $OMV_MYLAR1_APP_PATH ]; then
+        find $OMV_MYLAR1_APP_PATH -mindepth 1 -delete
+    fi
+
+    if [ -d $OMV_MYLAR1_DATA_PATH ]; then
+        find $OMV_MYLAR1_DATA_PATH -mindepth 1 -delete
+    fi
+
+    cd /home
+    su -s /bin/sh -c "git clone $repo -b $branch $OMV_MYLAR1_APP_PATH" $OMV_MYLAR_USER
+
+    if [ ! -f $OMV_MYLAR1_DATA_CONFIG ]; then
+        echo '[General]
+launch_browser = 0
+git_path = "/usr/bin/git"
+port = 8090
+web_port = 8090
+web_host = 0.0.0.0
+enable_https = 0
+https_cert = server.crt
+https_key = server.key
+web_root = ""' > $OMV_MYLAR1_DATA_CONFIG
+    chown $OMV_MYLAR_USER:$OMV_MYLAR_GROUP $OMV_MYLAR1_DATA_CONFIG
+    chmod 775 $OMV_MYLAR1_DATA_CONFIG
+    fi
+}
+
+switch_branch()
+{
+    local branch=$1
+    local repo=$2
+
+    cd $OMV_MYLAR1_APP_PATH
+    su -s /bin/sh -c "git reset --hard --quiet" $OMV_MYLAR_USER
+    su -s /bin/sh -c "git checkout $branch --quiet" $OMV_MYLAR_USER
+
+    if [ $repo = "https://github.com/evilhero/mylar.git" ]; then
+        if [ $branch = "master" ]; then
+            rm -R "${OMV_MYLAR1_APP_PATH}lib/requests" > /dev/null 2>&1
+            su -s /bin/sh -c "git reset --hard --quiet" $OMV_MYLAR_USER
+        fi
+    fi
+}
+
+repo="$(omv_config_get "//services/mylar/repo")"
+branch="$(omv_config_get "//services/mylar/branch")"
+
+# If $OMV_MYLAR1_APP_PATH does not exist it must be first clone.
+if [ ! -f "${OMV_MYLAR1_APP_PATH}Mylar.py" ]; then
+    find $OMV_MYLAR1_APP_PATH -mindepth 1 -delete
+    if [ "${repo}" != "Please choose a repository" ] && [ "${branch}" != "Please choose a branch" ]; then
+        switch_repo $repo $branch
+    fi
+fi
+
+# If $OMV_MYLAR1_APP_PATH exists and is not empty fetch current repo and branch.
+if [ ! -f "${OMV_MYLAR1_APP_PATH}Mylar.py" ]; then
+    find $OMV_MYLAR1_APP_PATH -mindepth 1 -delete
+    if [ "${repo}" != "Please choose a repository" ] && [ "${branch}" != "Please choose a branch" ]; then
+        switch_repo $repo $branch
+    fi
+fi
+
+if [ -n "$(ls -A $OMV_MYLAR1_APP_PATH)" ]; then
+    cd $OMV_MYLAR1_APP_PATH
+
+    current_repo="$(git config --get remote.origin.url)"
+    current_branch="$(git rev-parse --abbrev-ref HEAD)"
+
+    if [ $repo != $current_repo ]; then
+        switch_repo $repo $branch
+    fi
+
+    if [ $branch != $current_branch ]; then
+        switch_branch $branch $repo
+    fi
+else
+    find $OMV_MYLAR1_APP_PATH -mindepth 1 -delete
+    switch_repo $repo $branch
+fi
+
+if [ $ssl = "1" ]; then
+    if [ ! -f "${OMV_MYLAR1_DATA_PATH}/Certificate.crt" ]; then
+        # Create the certificate files.
+        xmlstarlet sel -t -m "//system/certificates/sslcertificate" \
+          -v uuid -i "position() != last()" -n -b \
+          ${OMV_CONFIG_FILE} | xmlstarlet unesc |
+          while read uuid; do
+                  crtfile="${OMV_MYLAR1_DATA_PATH}/Certificate.crt"
+                  xmlstarlet sel -t -m "//system/certificates/sslcertificate[uuid='${uuid}']" \
+                        -v certificate \
+                        ${OMV_CONFIG_FILE} | xmlstarlet unesc > ${crtfile}
+                  chmod 0640 ${crtfile}
+                  chown $OMV_MYLAR_USER:$OMV_MYLAR_GROUP ${crtfile}
+
+                  keyfile="${OMV_MYLAR1_DATA_PATH}/Private.key"
+                  xmlstarlet sel -t -m "//system/certificates/sslcertificate[uuid='${uuid}']" \
+                        -v privatekey \
+                        ${OMV_CONFIG_FILE} | xmlstarlet unesc > ${keyfile}
+                  chmod 0600 ${keyfile}
+                  chown $OMV_MYLAR_USER:$OMV_MYLAR_GROUP ${keyfile}
+          done
+        #Enable
+        if [ -f $OMV_MYLAR1_DATA_CONFIG ]; then
+            sed -i 's/^enable_https.*/enable_https = 1/' $OMV_MYLAR1_DATA_CONFIG
+            sed -i 's/^https_cert.*/https_cert = \/home\/mylar\/Certificate.crt/' $OMV_MYLAR1_DATA_CONFIG
+            sed -i 's/^https_key.*/https_key = \/home\/mylar\/Private.key/' $OMV_MYLAR1_DATA_CONFIG
+        fi
+    fi
+else
+    if [ -f "${OMV_MYLAR1_DATA_PATH}/Certificate.crt" ]; then
+        #Disable
+        if [ -f $OMV_MYLAR1_DATA_CONFIG ]; then
+            sed -i 's/^enable_https.*/enable_https = 0/' $OMV_MYLAR1_DATA_CONFIG
+            sed -i 's/^https_cert.*/https_cert = server.crt/' $OMV_MYLAR1_DATA_CONFIG
+            sed -i 's/^https_key.*/https_key = server.key/' $OMV_MYLAR1_DATA_CONFIG
+        fi
+        rm -Rf "${OMV_MYLAR1_DATA_PATH}/Certificate.crt" > /dev/null 2>&1
+        rm -Rf "${OMV_MYLAR1_DATA_PATH}/Private.key" > /dev/null 2>&1
+    fi
+fi
+
+if [ $ppass = "1" ]; then
+    cat <<EOF > /etc/nginx/openmediavault-webgui.d/ml.conf
+location /mylar {
+        proxy_pass        http://localhost:8090/mylar;
+        proxy_set_header  Host localhost:8090;
+        proxy_redirect    default;
+}
+
+EOF
+    if [ -f $OMV_MYLAR1_DATA_CONFIG ]; then
+        sed -i 's/^web_root.*/web_root = "\/mylar"/' $OMV_MYLAR1_DATA_CONFIG
+    fi
+    nginx -s reload
+else
+    rm -Rf /etc/nginx/openmediavault-webgui.d/ml.conf > /dev/null 2>&1
+    if [ -f $OMV_MYLAR1_DATA_CONFIG ]; then
+        sed -i 's/^web_root.*/web_root = ""/' $OMV_MYLAR1_DATA_CONFIG
+    fi
+    nginx -s reload
+fi
+exit 0
+
+
+
