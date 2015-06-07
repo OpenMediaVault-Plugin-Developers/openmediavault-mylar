@@ -27,9 +27,9 @@ Ext.define("OMV.module.admin.service.mylar.WebInterface", {
             callback : function(id, success, response) {
                 var proxy = response.ppass;
                 if (proxy == true) {
-                    var link = "http://" + window.location.hostname + "/mylar/home/";
+                    var link = "http://" + window.location.hostname + "/mylar/";
                 } else {
-                    var link = "http://" + window.location.hostname + ":" + response.port + "/home/";
+                    var link = "http://" + window.location.hostname + ":" + response.port;
 				}
                 this.html = "<iframe src='" + link + "' sandbox='allow-same-origin allow-forms allow-scripts' width='100%' height='100%' />";
             },

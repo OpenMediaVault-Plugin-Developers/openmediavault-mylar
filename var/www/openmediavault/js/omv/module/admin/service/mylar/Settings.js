@@ -62,16 +62,6 @@ Ext.define("OMV.module.admin.service.mylar.Settings", {
                 "port", 
             ], 
             properties : "!show" 
-        },{ 
-            name       : [ 
-                "newinstenable",
-                "branch2",
-                "repo2",
-            ], 
-            conditions : [ 
-                { name  : "newinstance", value : false }
-            ],
-            properties : "!show"
         }]
     }],
 
@@ -88,10 +78,10 @@ Ext.define("OMV.module.admin.service.mylar.Settings", {
             handler: function() {
                 var proxy = this.getForm().findField("ppass").getValue();
                 if (proxy == true) {
-                    var link = "http://" + location.hostname + "/mylar/home/";
+                    var link = "http://" + location.hostname + "/mylar/";
                 } else {
                     var port = this.getForm().findField("port").getValue();
-                    var link = "http://" + location.hostname + ":" + port + "/home/";
+                    var link = "http://" + location.hostname + ":" + port;
                 }
                 window.open(link, "_blank");
             }
@@ -235,18 +225,6 @@ Ext.define("OMV.module.admin.service.mylar.Settings", {
         for (var i = 0; i < values.length; i++) {
             // TODO: Look over use of field1
             branchCombo.store.add({ field1: values[i] });
-        }
-    },
-
-    updateBranchCombo2 : function(values) {
-        var me = this;
-        var branchCombo2 = me.findField("branch2");
-
-        branchCombo2.store.removeAll();
-
-        for (var i = 0; i < values.length; i++) {
-            // TODO: Look over use of field1
-            branchCombo2.store.add({ field1: values[i] });
         }
     }
 });

@@ -98,6 +98,8 @@ class OMVModuleMylar extends OMVModuleServiceAbstract implements
             return;
         }
 
+        $initd = new OMVSysVInitScript($this->getPluginName(), true);
+        $initd->exec();
     }
 
     public function stopService()
@@ -119,3 +121,4 @@ class OMVModuleMylar extends OMVModuleServiceAbstract implements
 // Register module
 $moduleMgr = &OMVModuleMgr::getInstance();
 $moduleMgr->registerModule(new OMVModuleMylar());
+
